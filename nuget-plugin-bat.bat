@@ -1,45 +1,33 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-echo Initializing variables and setting up input/output files
+:InputLoop
+set /p jsonLine=
 
-rem Define input and output files
-set "inputFile=input.json"
-set "outputFile=output.txt"
-
-rem Clear the output file
-echo Clearing the output file: %outputFile% > "%outputFile%"
-
-rem Read the input file and aggregate all lines into one line
-echo Reading the input file and aggregating into one line: %inputFile%
-set "jsonLine="
-for /f "delims=" %%a in (%inputFile%) do set "jsonLine=!jsonLine!%%a"
-
-echo JSON line read: !jsonLine!
+set debugLogPath=N:\Nigusu\NuGetBatAuthPlugin\debug.log
+echo JSON line read: !jsonLine! >> %debugLogPath%
 set quote="
 set comma=,
 set colon=:
 set openCurlyBracket={
 set closeCurlyBracket=}
-set comma=,
 set key=
 set value=
+set dot=.
 set onKeySearch=true
 set onValueSearch=false
 set enteredQuotes=false
 
-rem Loop through each character in the JSON line using the provided method
-echo Starting character processing loop
+echo Starting character processing loop >> %debugLogPath%
 set pos=0
 :NextChar
+    echo Current position: %pos% >> %debugLogPath%
     set index=%pos%
     set char=!jsonLine:~%pos%,1!
-    ::echo Processing character %index%: !char!
-    ::echo key: !key!
-
+    echo Processing character: !char! >> %debugLogPath%
+    if "!char!"=="" goto endLoop
     if %onKeySearch%==true (
         if %enteredQuotes%==true (
-            ::echo inside quotes
             if !char!==!quote! (
                 set onKeySearch=false
                 set onValueSearch=true
@@ -52,15 +40,14 @@ set pos=0
         )
     ) else if %onValueSearch%==true (
         if %enteredQuotes%==true (
-            ::echo inside quotes
             if !char!==!quote! (
                 set onKeySearch=true
                 set onValueSearch=true
                 set enteredQuotes=false
-                echo key: !key!
-                echo value: !value!
-                set key=
+                set "!key!=!value!"
                 set value=
+                set /a pos=pos+1
+                goto ClearKey
             ) else (
                 set value=!value!!char!
             )
@@ -77,10 +64,28 @@ set pos=0
     set /a pos=pos+1
     if "!jsonLine:~%pos%,1!" NEQ "" goto NextChar
 
+:ClearKey
+    if "!key!"=="" (
+        goto NextChar
+    )
+    set lastChar=!key:~-1!
+    if !lastChar!==!dot! (
+        goto NextChar
+    ) else (
+        set  key=!key:~0,-1!
+        goto ClearKey
+    )
+    goto NextChar
+
+
 :endLoop
-echo Character processing loop completed
-
-echo Outputting the result to the console
-type "%outputFile%"
-
-endlocal
+if "!RequestId!" == "" (
+    goto InputLoop
+) else (
+    set reponseJsonString={"RequestId":"!RequestId!","Type":"Response","Method":"Handshake","Payload":{"ProtocolVersion":"2.0.0","ResponseCode":0}}
+    set requestJsonString={"RequestId":"!RequestId!","Type":"Request","Method":"Handshake","Payload":{"ProtocolVersion":"2.0.0","MinimumProtocolVersion":"1.0.0"}}
+    echo !reponseJsonString!
+    echo !requestJsonString!
+    echo !jsonString! >> %debugLogPath%
+)
+goto InputLoop
